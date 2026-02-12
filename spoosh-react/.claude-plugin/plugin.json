@@ -1,0 +1,9 @@
+{
+  "name": "spoosh-react",
+  "version": "0.1.0",
+  "description": "Claude Code plugin for React developers using Spoosh - type-safe API toolkit with composable plugins",
+  "author": {
+    "name": "Spoosh Team"
+  },
+  "keywords": ["spoosh", "react", "api", "typescript", "data-fetching"]
+}
