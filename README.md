@@ -5,7 +5,7 @@ Skills for building applications with Spoosh type-safe API toolkit.
 ## Installation
 
 ```
-/plugin marketplace add spooshdev/skills
+npx skills add spooshdev/skills
 ```
 
 ## Available Skills
