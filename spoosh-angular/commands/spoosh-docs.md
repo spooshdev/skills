@@ -17,7 +17,7 @@ Provide quick access to Spoosh documentation based on the requested topic.
 1. **Parse Topic**
    - Extract topic from arguments
    - Default to overview if no topic specified
-   - Topics: `signals`, `plugins`, `patterns`, `setup`, `infinite`, `mutations`, `cache`, `retry`
+   - Topics: `signals`, `plugins`, `patterns`, `setup`, `infinite`, `mutations`, `cache`, `retry`, `queue`
 
 2. **Load Relevant Skill**
    - For API questions: Load `spoosh-angular-api` skill knowledge
@@ -26,7 +26,7 @@ Provide quick access to Spoosh documentation based on the requested topic.
 3. **Provide Documentation**
 
    For **signals**:
-   - Explain `injectRead`, `injectWrite`, `injectPages`
+   - Explain `injectRead`, `injectWrite`, `injectPages`, `injectQueue`
    - Show signal-based return types
    - Provide quick examples with Angular templates
 
@@ -70,6 +70,12 @@ Provide quick access to Spoosh documentation based on the requested topic.
    - Custom retry logic
    - Backoff strategies
 
+   For **queue**:
+   - `injectQueue` for batch operations
+   - Concurrency control
+   - Task states and stats (signals)
+   - Retry failed tasks
+
 4. **Include Examples**
    - Show relevant code examples with Angular templates
    - Reference example files in the plugin
@@ -98,6 +104,13 @@ items = injectPages(
   { canFetchNext, nextPageRequest, merger }
 );
 // items.fetchNext(), items.canFetchNext()
+
+// Queue (batch operations)
+queue = injectQueue(
+  (api) => api("items").POST(),
+  { concurrency: 3 }
+);
+// queue.tasks(), queue.stats(), queue.retry()
 ```
 
 ### Angular Template Usage

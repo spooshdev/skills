@@ -1,6 +1,6 @@
 ---
 name: Spoosh Angular API
-description: This skill should be used when the user asks about "Spoosh signals", "injectRead", "injectWrite", "injectPages", "Spoosh Angular setup", "Spoosh plugins", "cache plugin", "retry plugin", "polling plugin", "optimistic updates", "invalidation", "Spoosh devtools", or mentions using Spoosh with Angular. Provides comprehensive API knowledge for the @spoosh/angular package.
+description: This skill should be used when the user asks about "Spoosh injects", "injectRead", "injectWrite", "injectPages", "injectQueue", "Spoosh Angular setup", "Spoosh plugins", "cache plugin", "retry plugin", "polling plugin", "optimistic updates", "invalidation", "Spoosh devtools", or mentions using Spoosh with Angular. Provides comprehensive API knowledge for the @spoosh/angular package.
 ---
 
 # Spoosh Angular API Reference
@@ -39,7 +39,7 @@ const spoosh = new Spoosh<ApiSchema, Error>("/api")
   .use([cachePlugin(), retryPlugin()]);
 
 // Create Angular inject functions
-export const { injectRead, injectWrite, injectPages } = create(spoosh);
+export const { injectRead, injectWrite, injectPages, injectQueue } = create(spoosh);
 ```
 
 ## Body Utilities
@@ -50,21 +50,21 @@ Spoosh provides utilities for different request body formats from `@spoosh/core`
 import { form, json, urlencoded } from "@spoosh/core";
 
 // JSON (default for plain objects) - application/json
-await this.mutation.trigger({ body: { name: "John" } });  // Auto-serialized as JSON
-await this.mutation.trigger({ body: json({ name: "John" }) });  // Explicit JSON
+await trigger({ body: { name: "John" } });  // Auto-serialized as JSON
+await trigger({ body: json({ name: "John" }) });  // Explicit JSON
 
 // Form data - multipart/form-data (supports files and binary data)
-await this.mutation.trigger({ body: form({ file: myFile, name: "photo" }) });
+await trigger({ body: form({ file: myFile, name: "photo" }) });
 
 // URL-encoded - application/x-www-form-urlencoded
-await this.mutation.trigger({ body: urlencoded({ username: "john", password: "secret" }) });
+await trigger({ body: urlencoded({ username: "john", password: "secret" }) });
 ```
 
 ## Core Inject Functions
 
 ### injectRead
 
-Fetch data with automatic caching and state management using signals.
+Fetch data with automatic caching and state management. Returns signals.
 
 **Signature:**
 ```typescript
@@ -81,14 +81,14 @@ api("users/:id").GET({
 });
 ```
 
-**Returns Signals:**
-- `data: Signal<TData | undefined>` - Response data signal
+**Returns (all signals except trigger/abort):**
+- `data: Signal<TData | undefined>` - Response data
 - `loading: Signal<boolean>` - True during initial fetch
 - `fetching: Signal<boolean>` - True during any fetch
-- `error: Signal<TError | undefined>` - Error signal if failed
+- `error: Signal<TError | undefined>` - Error if failed
 - `trigger(): Promise<Response>` - Manually refetch
 - `abort(): void` - Cancel in-flight request
-- `meta: Signal<PluginResults>` - Plugin metadata signal
+- `meta: Signal<PluginResults>` - Plugin metadata
 
 **Hook Options (second argument):**
 
@@ -105,32 +105,24 @@ api("users/:id").GET({
 
 ### injectWrite
 
-Perform mutations (POST, PUT, DELETE) with signals.
+Perform mutations (POST, PUT, DELETE). Returns signals.
 
 **Signature:**
 ```typescript
 const result = injectWrite(
-  (api) => api("path").POST(),  // HTTP method selector
+  (api) => api("path").POST(),  // HTTP method selector (with parentheses)
   hookOptions?                   // Optional hook-level options
 );
 ```
 
-**Returns Signals:**
+**Returns (all signals except trigger/abort):**
 - `trigger(options): Promise<Response>` - Execute mutation
 - `loading: Signal<boolean>` - Mutation in progress
-- `error: Signal<TError | undefined>` - Error signal if failed
-- `data: Signal<TData | undefined>` - Response data signal
+- `error: Signal<TError | undefined>` - Error if failed
+- `data: Signal<TData | undefined>` - Response data
+- `meta: Signal<PluginResults>` - Plugin metadata (e.g., `transformedData`)
+- `input: Signal<{ body?: TBody; params?: TParams; query?: TQuery } | undefined>` - Last trigger input
 - `abort(): void` - Cancel request
-
-**Hook Options (second argument):**
-
-*Core Options:*
-- `tags?: string[] | "all" | "self" | "none"` - Cache tag configuration
-
-*Plugin Options (require corresponding plugins):*
-- `transform?: (data: TData) => TTransformed` - Transform response (transform plugin)
-- `retry?: { retries?: number, delay?: number }` - Retry config (retry plugin)
-- See `references/plugins-api.md` for all plugin options
 
 **Trigger Options (passed to trigger()):**
 - `body?: TBody` - Request body
@@ -145,9 +137,57 @@ const result = injectWrite(
 - `nextjs?: { revalidatePaths?: string[], serverRevalidate?: boolean }` - Next.js revalidation (nextjs plugin)
 - See `references/plugins-api.md` for all plugin options
 
+### injectQueue
+
+Queue management for batch operations with concurrency control.
+
+**Signature:**
+```typescript
+const result = injectQueue(
+  (api) => api("items/:id").POST(),  // Request function
+  { concurrency: 3 }                  // Max parallel requests (default: 3)
+);
+```
+
+**Returns (signals for tasks and stats):**
+- `tasks: Signal<QueueItem[]>` - All queued tasks with status
+- `stats: Signal<QueueStats>` - Queue statistics
+- `trigger(options): Promise<Response>` - Add task to queue and execute
+- `abort(id?): void` - Abort task by ID, or all tasks if no ID
+- `retry(id?): Promise<void>` - Retry failed task by ID, or all failed if no ID
+- `remove(id): void` - Remove specific task by ID
+- `removeSettled(): void` - Remove all settled tasks (success/error/aborted)
+- `clear(): void` - Abort all and clear queue
+- `setConcurrency(n): void` - Update concurrency limit
+
+**QueueItem:**
+```typescript
+interface QueueItem<TData, TError, TMeta> {
+  id: string;
+  status: "pending" | "loading" | "success" | "error" | "aborted";
+  data?: TData;
+  error?: TError;
+  meta?: TMeta;
+  input: { body?: TBody; params?: TParams; query?: TQuery };
+}
+```
+
+**QueueStats:**
+```typescript
+interface QueueStats {
+  pending: number;    // Tasks waiting to run
+  loading: number;    // Currently executing tasks
+  settled: number;    // Completed tasks (success + error + aborted)
+  success: number;    // Successfully completed tasks
+  failed: number;     // Failed tasks
+  total: number;      // All tasks
+  percentage: number; // Completion percentage (0-100)
+}
+```
+
 ### injectPages
 
-Bidirectional pagination with infinite scroll using signals.
+Bidirectional pagination with infinite scroll.
 
 **Signature:**
 ```typescript
@@ -179,7 +219,7 @@ interface InfinitePage<TData, TError, TMeta> {
 }
 ```
 
-**Returns Signals:**
+**Returns (all signals except methods):**
 - `data: Signal<TMerged>` - Merged data from all pages
 - `pages: Signal<InfinitePage<TData, TError, TMeta>[]>` - All individual page objects
 - `loading: Signal<boolean>` - Initial load
@@ -194,69 +234,6 @@ interface InfinitePage<TData, TError, TMeta> {
 - `abort(): void` - Cancel requests
 - `error: Signal<TError | undefined>` - Error state
 - `meta: Signal<PluginResults>` - Plugin metadata
-
-## Angular-Specific Features
-
-### Signal-Based Enabled Option
-
-```typescript
-@Component({...})
-export class UserListComponent {
-  userId = signal<string | null>(null);
-
-  // Using Signal directly
-  user = injectRead(
-    (api) => api("users/:id").GET({ params: { id: this.userId()! } }),
-    { enabled: () => !!this.userId() }
-  );
-
-  // Or using a computed signal
-  isEnabled = computed(() => !!this.userId());
-  userData = injectRead(
-    (api) => api("users/:id").GET({ params: { id: this.userId()! } }),
-    { enabled: this.isEnabled }
-  );
-}
-```
-
-### Using in Templates
-
-```html
-@if (users.loading()) {
-  <app-skeleton />
-} @else if (users.error()) {
-  <app-error [error]="users.error()!" (retry)="users.trigger()" />
-} @else if (!users.data()?.length) {
-  <app-empty-state />
-} @else {
-  <ul>
-    @for (user of users.data(); track user.id) {
-      <app-user-card [user]="user" />
-    }
-  </ul>
-}
-```
-
-### Signal Effects
-
-```typescript
-@Component({...})
-export class NotificationComponent {
-  notifications = injectRead(
-    (api) => api("notifications").GET(),
-    { pollingInterval: 30000 }
-  );
-
-  constructor() {
-    effect(() => {
-      const data = this.notifications.data();
-      if (data?.some(n => n.unread)) {
-        this.playNotificationSound();
-      }
-    });
-  }
-}
-```
 
 ## Plugin System
 
@@ -299,7 +276,7 @@ const spoosh = new Spoosh<ApiSchema, Error>("/api")
 ### Per-Request Plugin Options
 
 ```typescript
-users = injectRead(
+data = injectRead(
   (api) => api("users").GET(),
   {
     staleTime: 60000,                             // Cache for 60s
@@ -317,17 +294,25 @@ Spoosh auto-generates tags from path hierarchy (with resolved params):
 - `api("users/:id").GET({ params: { id: "123" } })` → `["users", "users/123"]`
 - `api("users/:id/posts").GET({ params: { id: "123" } })` → `["users", "users/123", "users/123/posts"]`
 
-### Invalidation in Mutations
+### Invalidation Modes
 
 ```typescript
-createUser = injectWrite((api) => api("users").POST());
+mutation = injectWrite((api) => api("users").POST());
 
-async handleCreate(userData: CreateUserBody) {
-  const result = await this.createUser.trigger({
-    body: userData,
-    invalidate: "all"  // or "self", "none", "*", ["users"]
-  });
-}
+// Invalidate entire hierarchy
+await mutation.trigger({ body: data, invalidate: "all" });
+
+// Invalidate exact path only
+await mutation.trigger({ body: data, invalidate: "self" });
+
+// Invalidate specific tags
+await mutation.trigger({ body: data, invalidate: ["users", "posts"] });
+
+// Invalidate everything
+await mutation.trigger({ body: data, invalidate: "*" });
+
+// No invalidation
+await mutation.trigger({ body: data, invalidate: "none" });
 ```
 
 ### Manual Invalidation
@@ -354,9 +339,12 @@ clearCache({ refetchAll: true });
 ### Reference Files
 
 For detailed API documentation, consult:
-- **`references/signals-api.md`** - Complete signal-based API
+- **`references/signals-api.md`** - Complete inject function signatures and options
 - **`references/plugins-api.md`** - All plugins with full configuration
+- **`references/type-inference.md`** - Server type inference with Hono/Elysia
 
 ### Examples
 
-For working code examples, see the Spoosh repository examples.
+For working code examples, see:
+- `examples/angular-basic` in the Spoosh repository
+- `examples/angular-ecommerce` for full e-commerce implementation

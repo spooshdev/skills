@@ -6,7 +6,7 @@ Claude Code plugin for Angular developers using Spoosh - a type-safe API toolkit
 
 ### Skills
 
-- **Spoosh Angular API** - Comprehensive API knowledge for `injectRead`, `injectWrite`, `injectPages`, and all plugins
+- **Spoosh Angular API** - Comprehensive API knowledge for `injectRead`, `injectWrite`, `injectPages`, `injectQueue`, and all plugins
 - **Spoosh Angular Patterns** - Component patterns and best practices for building Angular apps with Spoosh signals
 
 ### Commands
@@ -63,7 +63,7 @@ The agent triggers automatically when you ask to:
 ## Skills Auto-Activation
 
 Skills load automatically when you ask about:
-- Spoosh signals (`injectRead`, `injectWrite`, `injectPages`)
+- Spoosh injects (`injectRead`, `injectWrite`, `injectPages`, `injectQueue`)
 - Spoosh plugins (cache, retry, polling, etc.)
 - Component patterns (data fetching, mutations, infinite scroll)
 - Error handling, loading states, optimistic updates

@@ -128,6 +128,172 @@ interface InjectWriteResult<TData, TError, TBody> {
 }
 ```
 
+## injectQueue
+
+### Complete Signature
+
+```typescript
+function injectQueue<TQueueFn>(
+  queueFn: TQueueFn,
+  queueOptions?: InjectQueueOptions
+): BaseQueueResult<TData, TError, TTriggerInput, TMeta>;
+```
+
+### Options
+
+```typescript
+interface InjectQueueOptions {
+  /** Maximum concurrent operations. Defaults to 3. */
+  concurrency?: number;
+}
+```
+
+### QueueItem Structure
+
+```typescript
+interface QueueItem<TData, TError, TMeta> {
+  /** Unique task identifier */
+  id: string;
+
+  /** Current task status */
+  status: "pending" | "loading" | "success" | "error" | "aborted";
+
+  /** Response data (when status is "success") */
+  data?: TData;
+
+  /** Error (when status is "error") */
+  error?: TError;
+
+  /** Plugin metadata */
+  meta?: TMeta;
+
+  /** Original request input */
+  input: {
+    body?: TBody;
+    params?: Record<string, string>;
+    query?: Record<string, unknown>;
+  };
+}
+```
+
+### QueueStats Structure
+
+```typescript
+interface QueueStats {
+  /** Tasks waiting to be processed */
+  pending: number;
+
+  /** Currently executing tasks */
+  loading: number;
+
+  /** Completed tasks (success + error + aborted) */
+  settled: number;
+
+  /** Successfully completed tasks */
+  success: number;
+
+  /** Failed tasks */
+  failed: number;
+
+  /** All tasks */
+  total: number;
+
+  /** Completion percentage (0-100) */
+  percentage: number;
+}
+```
+
+### Result (All Signals)
+
+```typescript
+interface BaseQueueResult<TData, TError, TTriggerInput, TMeta> {
+  /** Add item to queue and execute. Returns promise for this item. */
+  trigger: (input?: TTriggerInput) => Promise<SpooshResponse<TData, TError>>;
+
+  /** All tasks in queue with their current status (Signal) */
+  tasks: Signal<QueueItem<TData, TError, TMeta>[]>;
+
+  /** Queue statistics (Signal) */
+  stats: Signal<QueueStats>;
+
+  /** Abort task by ID, or all tasks if no ID */
+  abort: (id?: string) => void;
+
+  /** Retry failed task by ID, or all failed if no ID */
+  retry: (id?: string) => Promise<void>;
+
+  /** Remove specific task by ID (aborts if active) */
+  remove: (id: string) => void;
+
+  /** Remove all settled tasks (success, error, aborted). Keeps pending/loading. */
+  removeSettled: () => void;
+
+  /** Abort all and clear queue */
+  clear: () => void;
+
+  /** Update concurrency limit */
+  setConcurrency: (concurrency: number) => void;
+}
+```
+
+### Trigger Input
+
+```typescript
+type QueueTriggerInput = {
+  /** Custom ID for this queue item. Auto-generated if not provided. */
+  id?: string;
+  body?: TBody;
+  params?: Record<string, string>;
+  query?: Record<string, unknown>;
+};
+```
+
+### Example
+
+```typescript
+@Component({
+  selector: "app-bulk-uploader",
+  template: `
+    <div>
+      <button (click)="handleUpload()">Upload All</button>
+      <p>Progress: {{ queue.stats().success }}/{{ queue.stats().total }} ({{ queue.stats().percentage }}%)</p>
+      <p>Failed: {{ queue.stats().failed }}</p>
+
+      @if (queue.stats().failed > 0) {
+        <button (click)="queue.retry()">Retry All Failed</button>
+      }
+
+      <ul>
+        @for (task of queue.tasks(); track task.id) {
+          <li>
+            @switch (task.status) {
+              @case ("loading") { Uploading... }
+              @case ("success") { Done }
+              @case ("error") { Error: {{ task.error?.message }} }
+              @default { Pending }
+            }
+          </li>
+        }
+      </ul>
+    </div>
+  `,
+})
+export class BulkUploaderComponent {
+  files = input.required<File[]>();
+
+  queue = injectQueue(
+    (api) => api("files").POST(),
+    { concurrency: 3 }
+  );
+
+  handleUpload() {
+    this.files().forEach((file) => {
+      this.queue.trigger({ body: form({ file }) });
+    });
+  }
+}
+```
+
 ## injectPages
 
 ### Complete Signature

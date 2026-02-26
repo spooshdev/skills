@@ -1,6 +1,6 @@
 ---
 name: Spoosh React API
-description: This skill should be used when the user asks about "Spoosh hooks", "useRead", "useWrite", "usePages", "Spoosh React setup", "Spoosh plugins", "cache plugin", "retry plugin", "polling plugin", "optimistic updates", "invalidation", "Spoosh devtools", or mentions using Spoosh with React. Provides comprehensive API knowledge for the @spoosh/react package.
+description: This skill should be used when the user asks about "Spoosh hooks", "useRead", "useWrite", "usePages", "useQueue", "useSSE", "Spoosh React setup", "Spoosh plugins", "cache plugin", "retry plugin", "polling plugin", "optimistic updates", "invalidation", "Spoosh devtools", "queue management", "batch operations", "server-sent events", "streaming", or mentions using Spoosh with React. Provides comprehensive API knowledge for the @spoosh/react package.
 ---
 
 # Spoosh React API Reference
@@ -39,7 +39,7 @@ const spoosh = new Spoosh<ApiSchema, Error>("/api")
   .use([cachePlugin(), retryPlugin()]);
 
 // Create React hooks
-export const { useRead, useWrite, usePages } = create(spoosh);
+export const { useRead, useWrite, usePages, useQueue, useSSE } = create(spoosh);
 ```
 
 ## Body Utilities
@@ -142,6 +142,93 @@ const result = useWrite(
 - `optimistic?: (cache) => cache("path").filter(...).set(...)` - Optimistic update using fluent API (optimistic plugin)
 - `nextjs?: { revalidatePaths?: string[], serverRevalidate?: boolean }` - Next.js revalidation (nextjs plugin)
 - See `references/plugins-api.md` for all plugin options
+
+### useQueue
+
+Queue management for batch operations with concurrency control.
+
+**Signature:**
+```typescript
+const result = useQueue(
+  (api) => api("items/:id").POST(),  // Request function
+  { concurrency: 3 }                  // Max parallel requests (default: 3)
+);
+```
+
+**Returns:**
+- `tasks: QueueItem[]` - All queued tasks with status
+- `stats: QueueStats` - Queue statistics
+- `trigger(options): Promise<Response>` - Add task to queue and execute
+- `abort(id?): void` - Abort task by ID, or all tasks if no ID
+- `retry(id?): Promise<void>` - Retry failed task by ID, or all failed if no ID
+- `remove(id): void` - Remove specific task by ID
+- `removeSettled(): void` - Remove all settled tasks (success/error/aborted)
+- `clear(): void` - Abort all and clear queue
+- `setConcurrency(n): void` - Update concurrency limit
+
+**QueueItem:**
+```typescript
+interface QueueItem<TData, TError, TMeta> {
+  id: string;
+  status: "pending" | "loading" | "success" | "error" | "aborted";
+  data?: TData;
+  error?: TError;
+  meta?: TMeta;
+  input: { body?: TBody; params?: TParams; query?: TQuery };
+}
+```
+
+**QueueStats:**
+```typescript
+interface QueueStats {
+  pending: number;    // Tasks waiting to run
+  loading: number;    // Currently executing tasks
+  settled: number;    // Completed tasks (success + error + aborted)
+  success: number;    // Successfully completed tasks
+  failed: number;     // Failed tasks
+  total: number;      // All tasks
+  percentage: number; // Completion percentage (0-100)
+}
+```
+
+### useSSE
+
+Server-Sent Events for real-time streaming data.
+
+**Signature:**
+```typescript
+const result = useSSE(
+  (api) => api("stream").GET(),  // SSE endpoint
+  {
+    enabled: true,               // Whether subscription is enabled (default: true)
+    parse: "auto",               // Parse strategy: "auto" | "json" | "text" | "json-done"
+    accumulate: "replace",       // "replace" (latest only) | "merge" (accumulate all)
+    events: ["message"],         // Event types to listen for (optional)
+    maxRetries: 5,               // Max retry attempts on failure
+    retryDelay: 1000,            // Delay between retries in ms
+  }
+);
+```
+
+**Returns:**
+- `data: Partial<TEvents> | undefined` - Accumulated data keyed by event type
+- `error: TError | undefined` - Connection or parse error
+- `isConnected: boolean` - Whether currently connected
+- `loading: boolean` - Whether connection is in progress
+- `meta: Record<string, never>` - Plugin metadata
+- `trigger(options?): Promise<void>` - Manually trigger connection
+- `disconnect(): void` - Disconnect from the SSE endpoint
+- `reset(): void` - Reset accumulated data
+
+**Parse Strategies:**
+- `"auto"` - Detect format automatically
+- `"json"` - Parse each event as JSON
+- `"text"` - Keep as raw text
+- `"json-done"` - Parse JSON, complete on `[DONE]` event
+
+**Accumulate Strategies:**
+- `"replace"` - Keep only the latest event data
+- `"merge"` - Accumulate all events into an array
 
 ### usePages
 

@@ -17,7 +17,7 @@ Provide quick access to Spoosh documentation based on the requested topic.
 1. **Parse Topic**
    - Extract topic from arguments
    - Default to overview if no topic specified
-   - Topics: `hooks`, `plugins`, `patterns`, `setup`, `infinite`, `mutations`, `cache`, `retry`
+   - Topics: `hooks`, `plugins`, `patterns`, `setup`, `infinite`, `mutations`, `cache`, `retry`, `queue`, `sse`
 
 2. **Load Relevant Skill**
    - For API questions: Load `spoosh-react-api` skill knowledge
@@ -26,7 +26,7 @@ Provide quick access to Spoosh documentation based on the requested topic.
 3. **Provide Documentation**
 
    For **hooks**:
-   - Explain `useRead`, `useWrite`, `usePages`
+   - Explain `useRead`, `useWrite`, `usePages`, `useQueue`, `useSSE`
    - Show signatures and options
    - Provide quick examples
 
@@ -70,6 +70,18 @@ Provide quick access to Spoosh documentation based on the requested topic.
    - Custom retry logic
    - Backoff strategies
 
+   For **queue**:
+   - `useQueue` for batch operations
+   - Concurrency control
+   - Task states and stats
+   - Retry failed tasks
+
+   For **sse**:
+   - `useSSE` for Server-Sent Events
+   - Parse strategies (auto, json, text, json-done)
+   - Accumulate strategies (replace, merge)
+   - Connection management
+
 4. **Include Examples**
    - Show relevant code examples
    - Reference example files in the plugin
@@ -98,6 +110,18 @@ const { trigger, loading } = useWrite(
 const { data, fetchNext, canFetchNext } = usePages(
   (api) => api("path").GET({ query: { page: 1 } }),
   { canFetchNext, nextPageRequest, merger }
+);
+
+// Queue (batch operations)
+const { tasks, stats, trigger, retry } = useQueue(
+  (api) => api("items").POST(),
+  { concurrency: 3 }
+);
+
+// SSE (streaming)
+const { data, isConnected, trigger, disconnect } = useSSE(
+  (api) => api("stream").GET(),
+  { parse: "json", accumulate: "replace" }
 );
 ```
 

@@ -286,6 +286,313 @@ type BasePagesResult<TData, TError, TMeta, TItem, TPluginResult> = {
 };
 ```
 
+## useQueue
+
+### Complete Signature
+
+```typescript
+function useQueue<TQueueFn>(
+  queueFn: TQueueFn,
+  queueOptions?: UseQueueOptions
+): UseQueueResult<TData, TError, TTriggerInput, TMeta>;
+```
+
+### Options
+
+```typescript
+interface UseQueueOptions {
+  /** Maximum concurrent operations. Defaults to 3. */
+  concurrency?: number;
+}
+```
+
+### QueueItem Structure
+
+```typescript
+interface QueueItem<TData, TError, TMeta> {
+  /** Unique task identifier */
+  id: string;
+
+  /** Current task status */
+  status: "pending" | "loading" | "success" | "error" | "aborted";
+
+  /** Response data (when status is "success") */
+  data?: TData;
+
+  /** Error (when status is "error") */
+  error?: TError;
+
+  /** Plugin metadata */
+  meta?: TMeta;
+
+  /** Original request input */
+  input: {
+    body?: TBody;
+    params?: Record<string, string>;
+    query?: Record<string, unknown>;
+  };
+}
+```
+
+### QueueStats Structure
+
+```typescript
+interface QueueStats {
+  /** Tasks waiting to be processed */
+  pending: number;
+
+  /** Currently executing tasks */
+  loading: number;
+
+  /** Completed tasks (success + error + aborted) */
+  settled: number;
+
+  /** Successfully completed tasks */
+  success: number;
+
+  /** Failed tasks */
+  failed: number;
+
+  /** All tasks */
+  total: number;
+
+  /** Completion percentage (0-100) */
+  percentage: number;
+}
+```
+
+### Result
+
+```typescript
+type UseQueueResult<TData, TError, TTriggerInput, TMeta> = {
+  /** Add item to queue and execute. Returns promise for this item. */
+  trigger: (input?: TTriggerInput) => Promise<SpooshResponse<TData, TError>>;
+
+  /** All tasks in queue with their current status */
+  tasks: QueueItem<TData, TError, TMeta>[];
+
+  /** Queue statistics */
+  stats: QueueStats;
+
+  /** Abort task by ID, or all tasks if no ID */
+  abort: (id?: string) => void;
+
+  /** Retry failed task by ID, or all failed if no ID */
+  retry: (id?: string) => Promise<void>;
+
+  /** Remove specific task by ID (aborts if active) */
+  remove: (id: string) => void;
+
+  /** Remove all settled tasks (success, error, aborted). Keeps pending/loading. */
+  removeSettled: () => void;
+
+  /** Abort all and clear queue */
+  clear: () => void;
+
+  /** Update concurrency limit */
+  setConcurrency: (concurrency: number) => void;
+};
+```
+
+### Trigger Input
+
+```typescript
+type QueueTriggerInput = {
+  /** Custom ID for this queue item. Auto-generated if not provided. */
+  id?: string;
+  body?: TBody;
+  params?: Record<string, string>;
+  query?: Record<string, unknown>;
+};
+```
+
+### Example
+
+```typescript
+function BulkUploader({ files }: { files: File[] }) {
+  const { tasks, stats, trigger, retry, clear } = useQueue(
+    (api) => api("files").POST(),
+    { concurrency: 3 }
+  );
+
+  const handleUpload = () => {
+    files.forEach((file) => {
+      trigger({ body: form({ file }) });
+    });
+  };
+
+  return (
+    <div>
+      <button onClick={handleUpload}>Upload All</button>
+      <p>Progress: {stats.success}/{stats.total} ({stats.percentage}%)</p>
+      <p>Failed: {stats.failed}</p>
+
+      {stats.failed > 0 && (
+        <button onClick={() => retry()}>Retry All Failed</button>
+      )}
+
+      <ul>
+        {tasks.map((task) => (
+          <li key={task.id}>
+            {task.status === "loading" && "Uploading..."}
+            {task.status === "success" && "Done"}
+            {task.status === "error" && `Error: ${task.error?.message}`}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+```
+
+## useSSE
+
+### Complete Signature
+
+```typescript
+function useSSE<TSubFn>(
+  subFn: TSubFn,
+  sseOptions?: UseSSEOptions
+): UseSSEResult<TEvents, TError>;
+```
+
+### Options
+
+```typescript
+interface UseSSEOptions {
+  /** Whether the subscription is enabled. Defaults to true. */
+  enabled?: boolean;
+
+  /** Max retry attempts on connection failure */
+  maxRetries?: number;
+
+  /** Delay between retries in ms */
+  retryDelay?: number;
+
+  /** Event types to listen for. If not provided, listens to all events. */
+  events?: string[];
+
+  /** Parse strategy for SSE event data. Defaults to 'auto'. */
+  parse?: ParseStrategy | Record<string, ParseStrategy>;
+
+  /** Accumulate strategy for combining events. Defaults to 'replace'. */
+  accumulate?: AccumulateStrategy | Record<string, AccumulateStrategy | AccumulatorFn>;
+}
+
+type ParseStrategy = "auto" | "json" | "text" | "json-done";
+type AccumulateStrategy = "replace" | "merge";
+type AccumulatorFn<T = unknown> = (previous: T | undefined, current: T) => T;
+```
+
+### Parse Strategies
+
+| Strategy | Description |
+|----------|-------------|
+| `"auto"` | Automatically detect JSON or text format |
+| `"json"` | Parse each event data as JSON |
+| `"text"` | Keep event data as raw text |
+| `"json-done"` | Parse as JSON, complete stream on `[DONE]` event |
+
+### Accumulate Strategies
+
+| Strategy | Description |
+|----------|-------------|
+| `"replace"` | Only keep the latest event data |
+| `"merge"` | Accumulate all events into an array |
+
+### Result
+
+```typescript
+interface UseSSEResult<TEvents, TError> {
+  /** Accumulated data keyed by event type */
+  data: Partial<TEvents> | undefined;
+
+  /** Connection or parse error */
+  error: TError | undefined;
+
+  /** Whether currently connected to the SSE endpoint */
+  isConnected: boolean;
+
+  /** Whether connection is in progress */
+  loading: boolean;
+
+  /** Plugin metadata */
+  meta: Record<string, never>;
+
+  /** Manually trigger connection with optional body/query overrides */
+  trigger: (options?: { body?: unknown; query?: unknown }) => Promise<void>;
+
+  /** Disconnect from the SSE endpoint */
+  disconnect: () => void;
+
+  /** Reset accumulated data */
+  reset: () => void;
+}
+```
+
+### Example: Chat Streaming
+
+```typescript
+function ChatStream({ prompt }: { prompt: string }) {
+  const { data, isConnected, error, trigger, disconnect } = useSSE(
+    (api) => api("chat/stream").POST({ body: { prompt } }),
+    {
+      parse: "json-done",
+      accumulate: "merge",
+    }
+  );
+
+  if (error) {
+    return (
+      <div>
+        <p>Connection error: {error.message}</p>
+        <button onClick={() => trigger()}>Retry</button>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {isConnected && <span>Streaming...</span>}
+      <div>{data?.message?.map((chunk) => chunk.text).join("")}</div>
+    </div>
+  );
+}
+```
+
+### Example: Live Updates
+
+```typescript
+function LivePrices() {
+  const { data, isConnected, trigger, disconnect } = useSSE(
+    (api) => api("prices/stream").GET(),
+    {
+      parse: "json",
+      accumulate: "replace",
+      maxRetries: 5,
+      retryDelay: 2000,
+    }
+  );
+
+  return (
+    <div>
+      <p>Status: {isConnected ? "Live" : "Disconnected"}</p>
+      <button onClick={isConnected ? disconnect : () => trigger()}>
+        {isConnected ? "Pause" : "Resume"}
+      </button>
+
+      {data?.prices && (
+        <ul>
+          {Object.entries(data.prices).map(([symbol, price]) => (
+            <li key={symbol}>{symbol}: ${price}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+```
+
 ## Response Format
 
 All hooks return responses as a discriminated union:
