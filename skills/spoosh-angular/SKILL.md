@@ -322,6 +322,46 @@ export class JobStatusComponent {
 }
 ```
 
+## Server Type Inference
+
+### Hono
+
+```typescript
+import { Spoosh, StripPrefix } from "@spoosh/core";
+import type { HonoToSpoosh } from "@spoosh/hono";
+
+// Server: app.basePath("/api")
+type FullSchema = HonoToSpoosh<typeof app>;
+type ApiSchema = StripPrefix<FullSchema, "api">; // Avoid double /api/api
+
+const spoosh = new Spoosh<ApiSchema, Error>("/api");
+```
+
+### Elysia
+
+```typescript
+import { Spoosh, StripPrefix } from "@spoosh/core";
+import type { ElysiaToSpoosh } from "@spoosh/elysia";
+
+// Server: new Elysia({ prefix: "/api" })
+type FullSchema = ElysiaToSpoosh<typeof app>;
+type ApiSchema = StripPrefix<FullSchema, "api">; // Avoid double /api/api
+
+const spoosh = new Spoosh<ApiSchema, Error>("/api");
+```
+
+Use `StripPrefix` when your baseUrl includes the same prefix as the server's basePath to prevent double prefixing (e.g., `/api/api/users`).
+
+## OpenAPI
+
+```bash
+# Export TypeScript → OpenAPI
+npx spoosh-openapi export --schema ./schema.ts --output openapi.json
+
+# Import OpenAPI → TypeScript
+npx spoosh-openapi import openapi.json --output ./schema.ts
+```
+
 ## References
 
 For detailed API documentation:

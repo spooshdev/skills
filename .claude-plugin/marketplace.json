@@ -5,13 +5,13 @@
     "email": "support@spoosh.dev"
   },
   "metadata": {
-    "description": "Skills for building React and Angular applications with Spoosh type-safe API toolkit",
+    "description": "Skills for building applications with Spoosh type-safe API toolkit",
     "version": "1.0.0"
   },
   "plugins": [
     {
       "name": "spoosh-skills",
-      "description": "Comprehensive skills for Spoosh React and Angular development including hooks/injects API, plugins, and component patterns",
+      "description": "Comprehensive skills for Spoosh React and Angular development",
       "source": "./",
       "strict": false,
       "skills": [
