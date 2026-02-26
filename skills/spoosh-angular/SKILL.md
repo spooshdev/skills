@@ -367,3 +367,6 @@ npx spoosh-openapi import openapi.json --output ./schema.ts
 For detailed API documentation:
 - `references/signals-api.md` - Complete inject function signatures
 - `references/plugins-api.md` - All plugin configurations
+- `references/advanced-patterns.md` - Complex patterns and edge cases
+
+If more detail needed, fetch https://spoosh.dev/docs/angular/llms (or /llms-full for complete docs).

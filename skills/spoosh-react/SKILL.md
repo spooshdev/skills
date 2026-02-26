@@ -396,3 +396,6 @@ npx spoosh-openapi import openapi.json --output ./schema.ts
 For detailed API documentation:
 - `references/hooks-api.md` - Complete hook signatures
 - `references/plugins-api.md` - All plugin configurations
+- `references/advanced-patterns.md` - Complex patterns and edge cases
+
+If more detail needed, fetch https://spoosh.dev/docs/react/llms (or /llms-full for complete docs).
