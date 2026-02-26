@@ -1,9 +1,0 @@
-{
-  "name": "spoosh-angular",
-  "version": "0.1.0",
-  "description": "Claude Code plugin for Angular developers using Spoosh - type-safe API toolkit with composable plugins",
-  "author": {
-    "name": "Spoosh Team"
-  },
-  "keywords": ["spoosh", "angular", "api", "typescript", "data-fetching", "signals"]
-}

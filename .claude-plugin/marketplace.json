@@ -1,0 +1,23 @@
+{
+  "name": "spoosh-skills",
+  "owner": {
+    "name": "Spoosh",
+    "email": "support@spoosh.dev"
+  },
+  "metadata": {
+    "description": "Skills for building React and Angular applications with Spoosh type-safe API toolkit",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "spoosh-skills",
+      "description": "Comprehensive skills for Spoosh React and Angular development including hooks/injects API, plugins, and component patterns",
+      "source": "./",
+      "strict": false,
+      "skills": [
+        "./skills/spoosh-react",
+        "./skills/spoosh-angular"
+      ]
+    }
+  ]
+}
