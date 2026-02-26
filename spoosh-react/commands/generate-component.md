@@ -114,7 +114,7 @@ Generate a new React component with Spoosh data fetching integration.
 
    For **infinite** type:
    ```typescript
-   import { useInfiniteRead } from "@/lib/spoosh";
+   import { usePages } from "@/lib/spoosh";
    import { useInView } from "react-intersection-observer";
    import { useEffect } from "react";
 
@@ -122,14 +122,14 @@ Generate a new React component with Spoosh data fetching integration.
      const { ref, inView } = useInView();
      const {
        data, loading, fetchingNext, canFetchNext, fetchNext, error
-     } = useInfiniteRead(
+     } = usePages(
        (api) => api("${endpoint}").GET({ query: { page: 1 } }),
        {
-         canFetchNext: ({ response }) => response?.hasMore ?? false,
-         nextPageRequest: ({ response, request }) => ({
-           query: { ...request.query, page: (response?.page ?? 0) + 1 }
+         canFetchNext: ({ lastPage }) => lastPage?.data?.hasMore ?? false,
+         nextPageRequest: ({ lastPage, request }) => ({
+           query: { ...request.query, page: (lastPage?.data?.page ?? 0) + 1 }
          }),
-         merger: (responses) => responses.flatMap(r => r.items)
+         merger: (pages) => pages.flatMap(p => p.data?.items ?? [])
        }
      );
 

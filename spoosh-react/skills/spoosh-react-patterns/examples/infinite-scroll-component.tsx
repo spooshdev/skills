@@ -8,7 +8,7 @@
  * - Loading states for next/prev
  */
 
-import { useInfiniteRead } from "@/lib/spoosh";
+import { usePages } from "@/lib/spoosh";
 import { useInView } from "react-intersection-observer";
 import { useEffect } from "react";
 
@@ -43,7 +43,7 @@ export function PostFeed({ authorId }: PostFeedProps) {
 
   const {
     data,
-    allResponses,
+    pages,
     loading,
     error,
     fetchingNext,
@@ -53,7 +53,7 @@ export function PostFeed({ authorId }: PostFeedProps) {
     fetchNext,
     fetchPrev,
     trigger,
-  } = useInfiniteRead(
+  } = usePages(
     (api) =>
       api("posts").GET({
         query: {
@@ -63,22 +63,22 @@ export function PostFeed({ authorId }: PostFeedProps) {
         },
       }),
     {
-      canFetchNext: ({ response }) => response?.hasMore ?? false,
-      nextPageRequest: ({ response, request }) => ({
+      canFetchNext: ({ lastPage }) => lastPage?.data?.hasMore ?? false,
+      nextPageRequest: ({ lastPage, request }) => ({
         query: {
           ...request.query,
-          page: (response?.page ?? 0) + 1,
+          page: (lastPage?.data?.page ?? 0) + 1,
         },
       }),
-      canFetchPrev: ({ response }) => response?.hasPrev ?? false,
-      prevPageRequest: ({ response, request }) => ({
+      canFetchPrev: ({ firstPage }) => firstPage?.data?.hasPrev ?? false,
+      prevPageRequest: ({ firstPage, request }) => ({
         query: {
           ...request.query,
-          page: (response?.page ?? 2) - 1,
+          page: (firstPage?.data?.page ?? 2) - 1,
         },
       }),
-      merger: (responses: PostsResponse[]) =>
-        responses.flatMap((r) => r.items),
+      merger: (pages) =>
+        pages.flatMap((p) => p.data?.items ?? []),
       staleTime: 30000,
     }
   );

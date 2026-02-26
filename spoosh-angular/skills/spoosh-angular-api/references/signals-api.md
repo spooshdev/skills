@@ -26,13 +26,15 @@ interface InjectReadOptions<TData, TError, TTransformed> {
   staleTime?: number;
 
   // Retry plugin (@spoosh/plugin-retry)
-  retries?: number | false;
-  retryDelay?: number;
-  shouldRetry?: (context: ShouldRetryContext) => boolean;
+  retry?: {
+    retries?: number | false;
+    delay?: number;
+    shouldRetry?: (context: ShouldRetryContext) => boolean;
+  };
   // ShouldRetryContext: { status?: number; error: unknown; attempt: number; maxRetries: number }
 
   // Polling plugin (@spoosh/plugin-polling)
-  pollingInterval?: number | ((data, error) => number | false);
+  pollingInterval?: number | (({ data, error }: { data: TData | undefined, error: TError | undefined }) => number | false);
 
   // Debounce plugin (@spoosh/plugin-debounce)
   debounce?: number | ((prevRequest: TRequest) => number);
@@ -44,8 +46,10 @@ interface InjectReadOptions<TData, TError, TTransformed> {
   initialData?: TData | (() => TData);
 
   // Refetch plugin (@spoosh/plugin-refetch)
-  refetchOnFocus?: boolean;
-  refetchOnReconnect?: boolean;
+  refetch?: {
+    onFocus?: boolean;
+    onReconnect?: boolean;
+  };
 
   // GC plugin (@spoosh/plugin-gc) - NO per-request options
   // Configure at plugin level: maxAge, maxEntries, interval
@@ -99,7 +103,7 @@ interface WriteTriggerOptions<TBody> {
   invalidate?: "all" | "self" | "none" | "*" | string | string[];
 
   // Optimistic plugin (@spoosh/plugin-optimistic)
-  optimistic?: (api) => api("path").GET().UPDATE_CACHE(fn);  // Fluent API
+  optimistic?: (cache) => cache("path").filter(entry => ...).set(fn);  // Fluent API
 
   // Retry plugin (@spoosh/plugin-retry)
   retries?: number | false;
@@ -124,54 +128,72 @@ interface InjectWriteResult<TData, TError, TBody> {
 }
 ```
 
-## injectInfiniteRead
+## injectPages
 
 ### Complete Signature
 
 ```typescript
-function injectInfiniteRead<TData, TError, TMerged = TData[]>(
+function injectPages<TData, TError, TMeta, TMerged = TData[]>(
   requestFn: (api: SpooshApi) => RequestConfig<TData>,
-  options: InjectInfiniteReadOptions<TData, TError, TMerged>
-): InjectInfiniteReadResult<TMerged, TData, TError>;
+  options: InjectPagesOptions<TData, TError, TMeta, TMerged>
+): InjectPagesResult<TMerged, TData, TError, TMeta>;
+```
+
+### InfinitePage Structure
+
+```typescript
+interface InfinitePage<TData, TError, TMeta> {
+  status: "pending" | "loading" | "success" | "error" | "stale";
+  data?: TData;
+  error?: TError;
+  meta?: TMeta;
+  input?: InfiniteRequestOptions;
+}
 ```
 
 ### Options
 
 ```typescript
-interface InjectInfiniteReadOptions<TData, TError, TMerged> {
+interface InjectPagesOptions<TData, TError, TMeta, TMerged> {
   // ========== REQUIRED OPTIONS ==========
-  canFetchNext: (context: PageContext<TData>) => boolean;
-  nextPageRequest: (context: PageContext<TData>) => Partial<RequestOptions>;
-  merger: (responses: TData[]) => TMerged;
+  canFetchNext: (context: InfiniteNextContext<TData, TError, TMeta>) => boolean;
+  nextPageRequest: (context: InfiniteNextContext<TData, TError, TMeta>) => Partial<RequestOptions>;
+  merger: (pages: InfinitePage<TData, TError, TMeta>[]) => TMerged;
 
   // ========== OPTIONAL: Previous page support ==========
-  canFetchPrev?: (context: PageContext<TData>) => boolean;
-  prevPageRequest?: (context: PageContext<TData>) => Partial<RequestOptions>;
+  canFetchPrev?: (context: InfinitePrevContext<TData, TError, TMeta>) => boolean;
+  prevPageRequest?: (context: InfinitePrevContext<TData, TError, TMeta>) => Partial<RequestOptions>;
 
   // ========== CORE OPTIONS (Angular-specific enabled) ==========
   enabled?: boolean | Signal<boolean> | (() => boolean);
   tags?: TagMode | string[];
 
   // ========== PLUGIN OPTIONS (same as injectRead) ==========
-  staleTime?: number;              // Cache plugin
-  retries?: number;                // Retry plugin
-  pollingInterval?: number;        // Polling plugin
+  staleTime?: number;                              // Cache plugin
+  retry?: { retries?: number; delay?: number };    // Retry plugin
+  pollingInterval?: number;                        // Polling plugin
   // ... other plugin options
 }
 
-interface PageContext<TData> {
-  response: TData | undefined;
+interface InfiniteNextContext<TData, TError, TMeta> {
+  lastPage: InfinitePage<TData, TError, TMeta> | undefined;
+  pages: InfinitePage<TData, TError, TMeta>[];
   request: RequestOptions;
-  allResponses: TData[];
+}
+
+interface InfinitePrevContext<TData, TError, TMeta> {
+  firstPage: InfinitePage<TData, TError, TMeta> | undefined;
+  pages: InfinitePage<TData, TError, TMeta>[];
+  request: RequestOptions;
 }
 ```
 
 ### Result (All Signals)
 
 ```typescript
-interface InjectInfiniteReadResult<TMerged, TData, TError> {
+interface InjectPagesResult<TMerged, TData, TError, TMeta> {
   data: Signal<TMerged | undefined>;
-  allResponses: Signal<TData[] | undefined>;
+  pages: Signal<InfinitePage<TData, TError, TMeta>[] | undefined>;
   loading: Signal<boolean>;
   fetching: Signal<boolean>;
   fetchingNext: Signal<boolean>;

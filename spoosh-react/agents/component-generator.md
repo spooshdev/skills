@@ -1,6 +1,6 @@
 ---
 name: component-generator
-description: Use this agent when the user asks to "create a Spoosh component", "generate a data fetching component", "build a React component with Spoosh", "scaffold a user list", "create an infinite scroll component", or needs autonomous component generation with Spoosh. Examples:
+description: Use this agent when the user asks to "create a Spoosh component", "generate a data fetching component", "build a React component with Spoosh", "scaffold a user list", "create an infinite scroll component", or needs autonomous component generation with Spoosh. Uses `usePages` for infinite scrolling. Examples:
 
 <example>
 Context: User wants to add a new feature that displays a list of products.
@@ -23,9 +23,9 @@ This involves multiple data fetching operations with dependencies, which the age
 <example>
 Context: User wants infinite scrolling for a feed.
 user: "Add infinite scroll to the posts feed"
-assistant: "I'll use the component-generator agent to implement infinite scroll with useInfiniteRead for the posts feed."
+assistant: "I'll use the component-generator agent to implement infinite scroll with usePages for the posts feed."
 <commentary>
-Infinite scroll requires specific patterns with useInfiniteRead that the agent knows how to implement correctly.
+Infinite scroll requires specific patterns with usePages that the agent knows how to implement correctly.
 </commentary>
 </example>
 
@@ -70,7 +70,7 @@ For mutation components:
 - Show loading state on submit buttons
 
 For infinite scroll:
-- Use `useInfiniteRead` with proper configuration
+- Use `usePages` with proper configuration
 - Implement intersection observer for auto-loading
 - Handle bidirectional scrolling if needed
 - Show loading indicators appropriately

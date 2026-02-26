@@ -147,7 +147,7 @@ export function DeleteUserButton({ userId, onDeleted }: Props) {
 ### Basic Infinite Scroll
 
 ```typescript
-import { useInfiniteRead } from "@/lib/spoosh";
+import { usePages } from "@/lib/spoosh";
 import { useInView } from "react-intersection-observer";
 import { useEffect } from "react";
 
@@ -161,14 +161,14 @@ export function InfinitePostList() {
     canFetchNext,
     fetchNext,
     error
-  } = useInfiniteRead(
+  } = usePages(
     (api) => api("posts").GET({ query: { page: 1, limit: 20 } }),
     {
-      canFetchNext: ({ response }) => response?.hasMore ?? false,
-      nextPageRequest: ({ response, request }) => ({
-        query: { ...request.query, page: (response?.page ?? 0) + 1 }
+      canFetchNext: ({ lastPage }) => lastPage?.data?.hasMore ?? false,
+      nextPageRequest: ({ lastPage, request }) => ({
+        query: { ...request.query, page: (lastPage?.data?.page ?? 0) + 1 }
       }),
-      merger: (responses) => responses.flatMap((r) => r.items)
+      merger: (pages) => pages.flatMap((p) => p.data?.items ?? [])
     }
   );
 
@@ -244,9 +244,8 @@ export function ToggleLikeButton({ postId, liked, likeCount }: Props) {
   const handleToggle = async () => {
     await trigger({
       params: { id: postId },
-      optimistic: (api) => api(`posts/${postId}`)
-        .GET()
-        .UPDATE_CACHE((current) => ({
+      optimistic: (cache) => cache(`posts/${postId}`)
+        .set((current) => ({
           ...current,
           liked: !liked,
           likeCount: liked ? likeCount - 1 : likeCount + 1
@@ -269,7 +268,7 @@ export function JobStatus({ jobId }: { jobId: string }) {
   const { data, loading, error } = useRead(
     (api) => api("jobs/:id").GET({ params: { id: jobId } }),
     {
-      pollingInterval: (data, error) => {
+      pollingInterval: ({ data, error }) => {
         if (error) return false;
         if (data?.status === "completed") return false;
         if (data?.status === "failed") return false;

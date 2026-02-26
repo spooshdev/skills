@@ -32,7 +32,7 @@ export function UserList({ departmentId }: UserListProps) {
       }),
     {
       staleTime: 30000,
-      retries: 3,
+      retry: { retries: 3 },
     }
   );
 

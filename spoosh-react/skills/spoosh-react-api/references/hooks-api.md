@@ -36,13 +36,15 @@ type BaseReadOptions = {
 staleTime?: number;
 
 // Retry plugin (@spoosh/plugin-retry)
-retries?: number | false;
-retryDelay?: number;
-shouldRetry?: (context: ShouldRetryContext) => boolean;
+retry?: {
+  retries?: number | false;
+  delay?: number;
+  shouldRetry?: (context: ShouldRetryContext) => boolean;
+};
 // ShouldRetryContext: { status?: number; error: unknown; attempt: number; maxRetries: number }
 
 // Polling plugin (@spoosh/plugin-polling)
-pollingInterval?: number | ((data: TData | undefined, error: TError | undefined) => number | false);
+pollingInterval?: number | (({ data, error }: { data: TData | undefined, error: TError | undefined }) => number | false);
 
 // Debounce plugin (@spoosh/plugin-debounce)
 debounce?: number | ((prevRequest: TRequest) => number);
@@ -54,8 +56,10 @@ transform?: (data: TData) => TTransformed;
 initialData?: TData | (() => TData | undefined);
 
 // Refetch plugin (@spoosh/plugin-refetch)
-refetchOnFocus?: boolean;
-refetchOnReconnect?: boolean;
+refetch?: {
+  onFocus?: boolean;
+  onReconnect?: boolean;
+};
 
 // GC plugin (@spoosh/plugin-gc) - NO per-request options
 // Configure at plugin level: maxAge, maxEntries, interval
@@ -137,7 +141,7 @@ clearCache?: boolean;
 invalidate?: "all" | "self" | "none" | "*" | string | string[];
 
 // Optimistic plugin (@spoosh/plugin-optimistic)
-optimistic?: (api) => api("path").GET().UPDATE_CACHE(fn);  // Fluent API
+optimistic?: (cache) => cache("path").filter(entry => ...).set(fn);  // Fluent API
 
 // Progress plugin (@spoosh/plugin-progress)
 progress?: boolean | { totalHeader?: string };
@@ -170,21 +174,33 @@ type BaseWriteResult<TData, TError, TOptions, TMeta> = {
 };
 ```
 
-## useInfiniteRead
+## usePages
 
 ### Complete Signature
 
 ```typescript
-function useInfiniteRead<TData, TError, TItem>(
+function usePages<TData, TError, TMeta, TItem>(
   requestFn: (api: SpooshApi) => RequestConfig<TData>,
-  options: UseInfiniteReadOptions<TData, TItem>
-): UseInfiniteReadResult<TData, TError, TItem>;
+  options: UsePagesOptions<TData, TError, TMeta, TItem>
+): UsePagesResult<TData, TError, TMeta, TItem>;
+```
+
+### InfinitePage Structure
+
+```typescript
+interface InfinitePage<TData, TError, TMeta> {
+  status: "pending" | "loading" | "success" | "error" | "stale";
+  data?: TData;
+  error?: TError;
+  meta?: TMeta;
+  input?: InfiniteRequestOptions;
+}
 ```
 
 ### Options
 
 ```typescript
-type BaseInfiniteReadOptions<TData, TItem, TRequest> = {
+type BasePagesOptions<TData, TError, TMeta, TItem, TRequest> = {
   /** Whether to fetch automatically on mount. Default: true */
   enabled?: boolean;
 
@@ -192,45 +208,45 @@ type BaseInfiniteReadOptions<TData, TItem, TRequest> = {
   tags?: TagMode | (TagModeInArray | (string & {}))[];
 
   /** Callback to determine if there's a next page to fetch */
-  canFetchNext: (ctx: InfiniteNextContext<TData, TRequest>) => boolean;
+  canFetchNext: (ctx: InfiniteNextContext<TData, TError, TMeta, TRequest>) => boolean;
 
   /** Callback to build the request options for the next page */
-  nextPageRequest: (ctx: InfiniteNextContext<TData, TRequest>) => Partial<TRequest>;
+  nextPageRequest: (ctx: InfiniteNextContext<TData, TError, TMeta, TRequest>) => Partial<TRequest>;
 
-  /** Callback to merge all responses into a single array of items */
-  merger: (allResponses: TData[]) => TItem[];
+  /** Callback to merge all pages into a single array of items */
+  merger: (pages: InfinitePage<TData, TError, TMeta>[]) => TItem[];
 
   /** Callback to determine if there's a previous page to fetch */
-  canFetchPrev?: (ctx: InfinitePrevContext<TData, TRequest>) => boolean;
+  canFetchPrev?: (ctx: InfinitePrevContext<TData, TError, TMeta, TRequest>) => boolean;
 
   /** Callback to build the request options for the previous page */
-  prevPageRequest?: (ctx: InfinitePrevContext<TData, TRequest>) => Partial<TRequest>;
+  prevPageRequest?: (ctx: InfinitePrevContext<TData, TError, TMeta, TRequest>) => Partial<TRequest>;
 
   // Plus plugin options (same as useRead)
 };
 
-type InfiniteNextContext<TData, TRequest> = {
-  response: TData | undefined;
+type InfiniteNextContext<TData, TError, TMeta, TRequest> = {
+  lastPage: InfinitePage<TData, TError, TMeta> | undefined;
+  pages: InfinitePage<TData, TError, TMeta>[];
   request: TRequest;
-  allResponses: TData[];
 };
 
-type InfinitePrevContext<TData, TRequest> = {
-  response: TData | undefined;
+type InfinitePrevContext<TData, TError, TMeta, TRequest> = {
+  firstPage: InfinitePage<TData, TError, TMeta> | undefined;
+  pages: InfinitePage<TData, TError, TMeta>[];
   request: TRequest;
-  allResponses: TData[];
 };
 ```
 
 ### Result
 
 ```typescript
-type BaseInfiniteReadResult<TData, TError, TItem, TPluginResult> = {
-  /** Merged items from all fetched responses */
+type BasePagesResult<TData, TError, TMeta, TItem, TPluginResult> = {
+  /** Merged items from all fetched pages */
   data: TItem[] | undefined;
 
-  /** Array of all raw response data */
-  allResponses: TData[] | undefined;
+  /** Array of all page objects with status, data, error, meta */
+  pages: InfinitePage<TData, TError, TMeta>[] | undefined;
 
   /** True during the initial load (no data yet) */
   loading: boolean;

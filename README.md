@@ -8,8 +8,8 @@ This directory contains Claude Code plugins for Spoosh - a type-safe API toolkit
 
 | Plugin | Framework | Description |
 |--------|-----------|-------------|
-| [spoosh-react](./spoosh-react) | React | Hooks-based API with `useRead`, `useWrite`, `useInfiniteRead` |
-| [spoosh-angular](./spoosh-angular) | Angular | Signals-based API with `injectRead`, `injectWrite`, `injectInfiniteRead` |
+| [spoosh-react](./spoosh-react) | React | Hooks-based API with `useRead`, `useWrite`, `usePages` |
+| [spoosh-angular](./spoosh-angular) | Angular | Signals-based API with `injectRead`, `injectWrite`, `injectPages` |
 
 ## Plugin Components
 

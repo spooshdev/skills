@@ -36,7 +36,7 @@ const spoosh = new Spoosh<ApiSchema>("/api")
   .use([cachePlugin(), invalidationPlugin()]);
 
 // Instance APIs come from create(), not from spoosh
-export const { injectRead, injectWrite, injectInfiniteRead, clearCache, invalidate } = create(spoosh);
+export const { injectRead, injectWrite, injectPages, clearCache, invalidate } = create(spoosh);
 
 // Now you can use instance APIs directly
 clearCache();
@@ -89,7 +89,7 @@ Automatic retry with exponential backoff.
 ```typescript
 retryPlugin({
   retries?: number | false;     // Number of retry attempts. Defaults to 3.
-  retryDelay?: number;          // Delay between retries in ms. Defaults to 1000.
+  delay?: number;               // Delay between retries in ms. Defaults to 1000.
   shouldRetry?: ShouldRetryCallback;  // Custom retry logic
 })
 ```
@@ -110,21 +110,23 @@ interface ShouldRetryContext {
 - Retries on status codes: 408, 429, 500, 502, 503, 504
 - Network errors (TypeError) are ALWAYS retried regardless of shouldRetry
 - Abort errors are NEVER retried
-- Uses exponential backoff: `retryDelay * 2^attempt`
+- Uses exponential backoff: `delay * 2^attempt`
 
 **Per-Request Options:**
 ```typescript
 data = injectRead((api) => api("users").GET(), {
-  retries: 5,
-  retryDelay: 2000,
-  shouldRetry: ({ status, attempt }) => {
-    if (status === 401) return false;
-    return status !== undefined && status >= 500;
+  retry: {
+    retries: 5,
+    delay: 2000,
+    shouldRetry: ({ status, attempt }) => {
+      if (status === 401) return false;
+      return status !== undefined && status >= 500;
+    }
   }
 });
 
 // Disable retries
-data = injectRead((api) => api("users").GET(), { retries: false });
+data = injectRead((api) => api("users").GET(), { retry: { retries: false } });
 ```
 
 ## Polling Plugin
@@ -140,11 +142,11 @@ const spoosh = new Spoosh<ApiSchema>("/api")
 // Static interval
 status = injectRead((api) => api("status").GET(), { pollingInterval: 5000 });
 
-// Dynamic interval based on response
+// Dynamic interval based on response (destructured context)
 job = injectRead(
   (api) => api("jobs/:id").GET({ params: { id: this.jobId() } }),
   {
-    pollingInterval: (data, error) => {
+    pollingInterval: ({ data, error }) => {
       if (error) return false;
       if (data?.status === "complete") return false;
       return 2000;
@@ -254,30 +256,27 @@ async handleUpdate(postId: string, newTitle: string) {
   await this.updatePost.trigger({
     params: { id: postId },
     body: { title: newTitle },
-    optimistic: (api) => api(`posts/${postId}`)
-      .GET()
-      .UPDATE_CACHE((current) => ({ ...current, title: newTitle }))
+    optimistic: (cache) => cache(`posts/${postId}`)
+      .set((current) => ({ ...current, title: newTitle }))
   });
 
-  // Or use WHERE with params filter
+  // Or use filter with params
   await this.updatePost.trigger({
     params: { id: postId },
     body: { title: newTitle },
-    optimistic: (api) => api("posts/:id")
-      .GET()
-      .WHERE(({ params }) => params.id === postId)
-      .UPDATE_CACHE((current) => ({ ...current, title: newTitle }))
+    optimistic: (cache) => cache("posts/:id")
+      .filter((entry) => entry.params.id === postId)
+      .set((current) => ({ ...current, title: newTitle }))
   });
 }
 
-// With WHERE filter (predicate function)
+// With filter predicate (by query)
 async handleCreate() {
   await this.createPost.trigger({
     body: this.newPost,
-    optimistic: (api) => api("posts")
-      .GET()
-      .WHERE((entry) => entry.query.page === 1)
-      .UPDATE_CACHE((posts) => [this.newPost, ...posts])
+    optimistic: (cache) => cache("posts")
+      .filter((entry) => entry.query.page === 1)
+      .set((posts) => [this.newPost, ...posts])
   });
 }
 
@@ -285,25 +284,24 @@ async handleCreate() {
 async handleAdd() {
   await this.addPost.trigger({
     body: postData,
-    optimistic: (api) => api("posts")
-      .GET()
-      .ON_SUCCESS()
-      .UPDATE_CACHE((posts, newPost) => [...posts, newPost])
+    optimistic: (cache) => cache("posts")
+      .confirmed()
+      .set((posts, newPost) => [...posts, newPost])
   });
 }
 ```
 
 **Fluent API Methods:**
-- `api("path").GET()` - Select cache entries for this path
-  - Use template literals for dynamic params: `` api(`posts/${id}`) ``
-  - Or use WHERE to filter: `api("posts/:id").GET().WHERE(({ params }) => params.id === id)`
-- `.WHERE(predicate)` - Filter cache entries by params/query
-  - `({ params }) => params.id === id` - Match by param
-  - `({ query }) => query.page === 1` - Match by query
-- `.UPDATE_CACHE(fn)` - Update function (required)
-- `.ON_SUCCESS()` - Apply after mutation succeeds (response available in UPDATE_CACHE)
-- `.NO_ROLLBACK()` - Disable automatic rollback on error
-- `.ON_ERROR(fn)` - Callback when mutation fails
+- `cache("path")` - Select cache entries for this path
+  - Use template literals for dynamic params: `` cache(`posts/${id}`) ``
+  - Or use filter: `cache("posts/:id").filter((entry) => entry.params.id === id)`
+- `.filter(predicate)` - Filter cache entries by params/query
+  - `(entry) => entry.params.id === id` - Match by param
+  - `(entry) => entry.query.page === 1` - Match by query
+- `.set(fn)` - Update function (required)
+- `.confirmed()` - Apply after mutation succeeds (response available in set)
+- `.disableRollback()` - Disable automatic rollback on error
+- `.onError(fn)` - Callback when mutation fails
 
 **Read Result Properties:**
 - `meta().isOptimistic: boolean` - True if data is from an optimistic update (not yet confirmed by server)
@@ -352,13 +350,13 @@ import { refetchPlugin } from "@spoosh/plugin-refetch";
 
 const spoosh = new Spoosh<ApiSchema>("/api")
   .use([refetchPlugin({
-    refetchOnFocus: true,
-    refetchOnReconnect: true
+    onFocus: true,
+    onReconnect: true
   })]);
 
 // Per-request override
 users = injectRead((api) => api("users").GET(), {
-  refetchOnFocus: false
+  refetch: { onFocus: false }
 });
 ```
 
@@ -370,7 +368,9 @@ Preload data before it's needed.
 import { prefetchPlugin } from "@spoosh/plugin-prefetch";
 
 const spoosh = new Spoosh<ApiSchema>("/api")
-  .use([prefetchPlugin()]);
+  .use([prefetchPlugin({
+    timeout: 30000  // Timeout in ms after which stale promises are cleared. Default: 30000
+  })]);
 
 // Get prefetch from create()
 export const { injectRead, prefetch } = create(spoosh);
@@ -433,6 +433,14 @@ const spoosh = new Spoosh<ApiSchema>("/api")
     maxEntries: 100,     // Max number of cache entries to keep
     interval: 60000      // Interval between GC runs (default: 60000)
   })]);
+```
+
+**Instance API:**
+```typescript
+const { runGc } = create(spoosh);
+
+// Manually trigger garbage collection
+const removedCount = runGc();
 ```
 
 **Note:** GC plugin has NO per-request options. Configure at plugin level only.
@@ -572,7 +580,9 @@ const spoosh = new Spoosh<ApiSchema>("/api")
 ```typescript
 await trigger({
   body: data,
-  revalidatePaths: ["/users", "/dashboard"],  // Additional paths to revalidate
-  serverRevalidate: true                       // Override plugin default
+  nextjs: {
+    revalidatePaths: ["/users", "/dashboard"],  // Additional paths to revalidate
+    serverRevalidate: true                       // Override plugin default
+  }
 });
 ```

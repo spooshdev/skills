@@ -1,6 +1,6 @@
 ---
 name: Spoosh React API
-description: This skill should be used when the user asks about "Spoosh hooks", "useRead", "useWrite", "useInfiniteRead", "Spoosh React setup", "Spoosh plugins", "cache plugin", "retry plugin", "polling plugin", "optimistic updates", "invalidation", "Spoosh devtools", or mentions using Spoosh with React. Provides comprehensive API knowledge for the @spoosh/react package.
+description: This skill should be used when the user asks about "Spoosh hooks", "useRead", "useWrite", "usePages", "Spoosh React setup", "Spoosh plugins", "cache plugin", "retry plugin", "polling plugin", "optimistic updates", "invalidation", "Spoosh devtools", or mentions using Spoosh with React. Provides comprehensive API knowledge for the @spoosh/react package.
 ---
 
 # Spoosh React API Reference
@@ -39,7 +39,7 @@ const spoosh = new Spoosh<ApiSchema, Error>("/api")
   .use([cachePlugin(), retryPlugin()]);
 
 // Create React hooks
-export const { useRead, useWrite, useInfiniteRead } = create(spoosh);
+export const { useRead, useWrite, usePages } = create(spoosh);
 ```
 
 ## Body Utilities
@@ -98,8 +98,9 @@ api("users/:id").GET({
 
 *Plugin Options (require corresponding plugins):*
 - `staleTime?: number` - Cache duration (cache plugin)
-- `retries?: number` - Retry attempts (retry plugin)
-- `pollingInterval?: number` - Polling interval (polling plugin)
+- `retry?: { retries?: number, delay?: number, shouldRetry?: ... }` - Retry config (retry plugin)
+- `pollingInterval?: number | (({ data, error }) => number | false)` - Polling interval (polling plugin)
+- `refetch?: { onFocus?: boolean, onReconnect?: boolean }` - Refetch config (refetch plugin)
 - See `references/plugins-api.md` for all plugin options
 
 ### useWrite
@@ -126,7 +127,7 @@ const result = useWrite(
 
 *Plugin Options (require corresponding plugins):*
 - `transform?: (data: TData) => TTransformed` - Transform response (transform plugin)
-- `retries?: number` - Retry attempts (retry plugin)
+- `retry?: { retries?: number, delay?: number }` - Retry config (retry plugin)
 - See `references/plugins-api.md` for all plugin options
 
 **Trigger Options (passed to trigger()):**
@@ -138,35 +139,47 @@ const result = useWrite(
 *Plugin Trigger Options (when plugins are installed):*
 - `invalidate?: "all" | "self" | "none" | string[]` - Cache invalidation (invalidation plugin)
 - `clearCache?: boolean` - Clear cache after mutation (cache plugin)
-- `optimistic?: OptimisticBuilder` - Optimistic update using fluent API (optimistic plugin)
+- `optimistic?: (cache) => cache("path").filter(...).set(...)` - Optimistic update using fluent API (optimistic plugin)
+- `nextjs?: { revalidatePaths?: string[], serverRevalidate?: boolean }` - Next.js revalidation (nextjs plugin)
 - See `references/plugins-api.md` for all plugin options
 
-### useInfiniteRead
+### usePages
 
 Bidirectional pagination with infinite scroll.
 
 **Signature:**
 ```typescript
-const result = useInfiniteRead(
+const result = usePages(
   (api) => api("posts").GET({ query: { page: 1 } }),
   {
-    canFetchNext: ({ response }) => response?.meta.hasMore ?? false,
-    nextPageRequest: ({ response, request }) => ({
-      query: { ...request.query, page: (response?.meta.page ?? 0) + 1 }
+    canFetchNext: ({ lastPage }) => lastPage?.data?.meta.hasMore ?? false,
+    nextPageRequest: ({ lastPage, request }) => ({
+      query: { ...request.query, page: (lastPage?.data?.meta.page ?? 0) + 1 }
     }),
-    merger: (allResponses) => allResponses.flatMap(r => r.items),
+    merger: (pages) => pages.flatMap(p => p.data?.items ?? []),
     // Optional: Previous page support
-    canFetchPrev: ({ response }) => (response?.meta.page ?? 1) > 1,
-    prevPageRequest: ({ response, request }) => ({
-      query: { ...request.query, page: (response?.meta.page ?? 2) - 1 }
+    canFetchPrev: ({ firstPage }) => (firstPage?.data?.meta.page ?? 1) > 1,
+    prevPageRequest: ({ firstPage, request }) => ({
+      query: { ...request.query, page: (firstPage?.data?.meta.page ?? 2) - 1 }
     })
   }
 );
 ```
 
+**InfinitePage Structure:**
+```typescript
+interface InfinitePage<TData, TError, TMeta> {
+  status: "pending" | "loading" | "success" | "error" | "stale";
+  data?: TData;
+  error?: TError;
+  meta?: TMeta;
+  input?: InfiniteRequestOptions;
+}
+```
+
 **Returns:**
 - `data: TMerged` - Merged data from all pages
-- `allResponses: TData[]` - All individual responses
+- `pages: InfinitePage<TData, TError, TMeta>[]` - All individual page objects
 - `loading: boolean` - Initial load
 - `fetching: boolean` - Any fetch
 - `fetchingNext: boolean` - Fetching next page
@@ -187,20 +200,21 @@ const result = useInfiniteRead(
 | Plugin | Purpose | Key Options |
 |--------|---------|-------------|
 | `cachePlugin` | Response caching | `staleTime`, `clearCache` |
-| `retryPlugin` | Automatic retries | `retries`, `retryDelay`, `shouldRetry` |
-| `pollingPlugin` | Auto-refresh | `pollingInterval` |
+| `retryPlugin` | Automatic retries | `retry: { retries, delay, shouldRetry }` |
+| `pollingPlugin` | Auto-refresh | `pollingInterval: number \| (({ data, error }) => ...)` |
 | `debouncePlugin` | Debounce requests | `debounce` |
 | `throttlePlugin` | Rate limiting | `throttle` |
 | `deduplicationPlugin` | Prevent duplicates | Automatic |
 | `invalidationPlugin` | Cache invalidation | `invalidate` |
-| `optimisticPlugin` | Instant UI updates | `optimistic` (fluent API) |
+| `optimisticPlugin` | Instant UI updates | `optimistic` (fluent API with `.filter()`, `.set()`) |
 | `initialDataPlugin` | Show data immediately | `initialData` |
-| `refetchPlugin` | Refetch on focus/reconnect | `refetchOnFocus`, `refetchOnReconnect` |
-| `prefetchPlugin` | Preload data | Manual via instance API |
+| `refetchPlugin` | Refetch on focus/reconnect | `refetch: { onFocus, onReconnect }` |
+| `prefetchPlugin` | Preload data | Manual via instance API, `timeout` option |
 | `transformPlugin` | Transform responses | `transform` |
-| `gcPlugin` | Garbage collection | `maxAge`, `maxEntries`, `interval` (plugin config only) |
+| `gcPlugin` | Garbage collection | `maxAge`, `maxEntries`, `interval`, `runGc()` instance API |
 | `qsPlugin` | Query string serialization | `serializer` |
 | `progressPlugin` | Upload/download progress | Returns progress in meta |
+| `nextjsPlugin` | Next.js revalidation | `nextjs: { revalidatePaths, serverRevalidate }` |
 
 ### Plugin Setup
 
@@ -212,7 +226,7 @@ import { invalidationPlugin } from "@spoosh/plugin-invalidation";
 const spoosh = new Spoosh<ApiSchema, Error>("/api")
   .use([
     cachePlugin({ staleTime: 30000 }),
-    retryPlugin({ retries: 3, retryDelay: 1000 }),
+    retryPlugin({ retries: 3, delay: 1000 }),
     invalidationPlugin()
   ]);
 ```
@@ -223,9 +237,10 @@ const spoosh = new Spoosh<ApiSchema, Error>("/api")
 const { data } = useRead(
   (api) => api("users").GET(),
   {
-    staleTime: 60000,        // Cache for 60s
-    retries: 5,              // Retry 5 times
-    pollingInterval: 10000   // Poll every 10s
+    staleTime: 60000,                             // Cache for 60s
+    retry: { retries: 5, delay: 1000 },           // Retry 5 times with 1s delay
+    pollingInterval: 10000,                       // Poll every 10s
+    refetch: { onFocus: true, onReconnect: true } // Refetch on focus/reconnect
   }
 );
 ```

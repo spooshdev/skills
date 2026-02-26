@@ -112,9 +112,8 @@ export class EditableTitleComponent {
     const result = await this.updateItem.trigger({
       params: { id: this.item().id },
       body: { title: this.title() },
-      optimistic: (api) => api(`items/${this.item().id}`)
-        .GET()
-        .UPDATE_CACHE((current) => ({ ...current, title: this.title() }))
+      optimistic: (cache) => cache(`items/${this.item().id}`)
+        .set((current) => ({ ...current, title: this.title() }))
     });
 
     if (result.error) {
@@ -136,21 +135,21 @@ For chat-like interfaces where you can scroll up for older messages.
 export class ChatMessagesComponent {
   chatId = input.required<string>();
 
-  messages = injectInfiniteRead(
+  messages = injectPages(
     (api) => api("chats/:id/messages").GET({
       params: { id: this.chatId() },
       query: { cursor: null }
     }),
     {
-      canFetchNext: ({ response }) => !!response?.nextCursor,
-      nextPageRequest: ({ response }) => ({
-        query: { cursor: response?.nextCursor }
+      canFetchNext: ({ lastPage }) => !!lastPage?.data?.nextCursor,
+      nextPageRequest: ({ lastPage }) => ({
+        query: { cursor: lastPage?.data?.nextCursor }
       }),
-      canFetchPrev: ({ response }) => !!response?.prevCursor,
-      prevPageRequest: ({ response }) => ({
-        query: { cursor: response?.prevCursor }
+      canFetchPrev: ({ firstPage }) => !!firstPage?.data?.prevCursor,
+      prevPageRequest: ({ firstPage }) => ({
+        query: { cursor: firstPage?.data?.prevCursor }
       }),
-      merger: (responses) => responses.flatMap(r => r.messages)
+      merger: (pages) => pages.flatMap(p => p.data?.messages ?? [])
     }
   );
 
@@ -329,14 +328,16 @@ export class ResilientDataComponent {
   data = injectRead(
     (api) => api("flaky-endpoint").GET(),
     {
-      retries: 5,
-      retryDelay: 1000,
-      // shouldRetry receives a context object, not a response
-      shouldRetry: ({ status, error, attempt, maxRetries }) => {
-        if (status === 401) return false;
-        if (status === 403) return false;
-        if (status === 404) return false;
-        return status !== undefined && status >= 500;
+      retry: {
+        retries: 5,
+        delay: 1000,
+        // shouldRetry receives a context object, not a response
+        shouldRetry: ({ status, error, attempt, maxRetries }) => {
+          if (status === 401) return false;
+          if (status === 403) return false;
+          if (status === 404) return false;
+          return status !== undefined && status >= 500;
+        }
       }
     }
   );

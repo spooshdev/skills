@@ -26,7 +26,7 @@ Provide quick access to Spoosh documentation based on the requested topic.
 3. **Provide Documentation**
 
    For **hooks**:
-   - Explain `useRead`, `useWrite`, `useInfiniteRead`
+   - Explain `useRead`, `useWrite`, `usePages`
    - Show signatures and options
    - Provide quick examples
 
@@ -48,7 +48,7 @@ Provide quick access to Spoosh documentation based on the requested topic.
    - TypeScript setup
 
    For **infinite**:
-   - `useInfiniteRead` detailed guide
+   - `usePages` detailed guide
    - Pagination options
    - Bidirectional scrolling
    - Merger function
@@ -95,7 +95,7 @@ const { trigger, loading } = useWrite(
 );
 
 // Infinite scroll
-const { data, fetchNext, canFetchNext } = useInfiniteRead(
+const { data, fetchNext, canFetchNext } = usePages(
   (api) => api("path").GET({ query: { page: 1 } }),
   { canFetchNext, nextPageRequest, merger }
 );

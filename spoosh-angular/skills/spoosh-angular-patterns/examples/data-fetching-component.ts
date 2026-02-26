@@ -68,7 +68,7 @@ export class UserListComponent {
       }),
     {
       staleTime: 30000,
-      retries: 3,
+      retry: { retries: 3 },
     }
   );
 

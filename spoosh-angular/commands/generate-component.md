@@ -138,7 +138,7 @@ Generate a new Angular component with Spoosh data fetching integration using sig
    For **infinite** type:
    ```typescript
    import { Component, effect, ElementRef, viewChild, OnDestroy } from "@angular/core";
-   import { injectInfiniteRead } from "@/lib/spoosh";
+   import { injectPages } from "@/lib/spoosh";
 
    @Component({
      selector: "app-${selector}",
@@ -165,14 +165,14 @@ Generate a new Angular component with Spoosh data fetching integration using sig
    export class ${ComponentName}Component implements OnDestroy {
      loadTrigger = viewChild<ElementRef>("loadTrigger");
 
-     items = injectInfiniteRead(
+     items = injectPages(
        (api) => api("${endpoint}").GET({ query: { page: 1 } }),
        {
-         canFetchNext: ({ response }) => response?.hasMore ?? false,
-         nextPageRequest: ({ response, request }) => ({
-           query: { ...request.query, page: (response?.page ?? 0) + 1 }
+         canFetchNext: ({ lastPage }) => lastPage?.data?.hasMore ?? false,
+         nextPageRequest: ({ lastPage, request }) => ({
+           query: { ...request.query, page: (lastPage?.data?.page ?? 0) + 1 }
          }),
-         merger: (responses) => responses.flatMap(r => r.items)
+         merger: (pages) => pages.flatMap(p => p.data?.items ?? [])
        }
      );
 

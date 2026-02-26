@@ -174,7 +174,7 @@ export class DeleteUserButtonComponent {
 
 ```typescript
 import { Component, effect, ElementRef, viewChild } from "@angular/core";
-import { injectInfiniteRead } from "@/lib/spoosh";
+import { injectPages } from "@/lib/spoosh";
 
 @Component({
   selector: "app-infinite-post-list",
@@ -201,14 +201,14 @@ import { injectInfiniteRead } from "@/lib/spoosh";
 export class InfinitePostListComponent {
   loadTrigger = viewChild<ElementRef>("loadTrigger");
 
-  posts = injectInfiniteRead(
+  posts = injectPages(
     (api) => api("posts").GET({ query: { page: 1, limit: 20 } }),
     {
-      canFetchNext: ({ response }) => response?.hasMore ?? false,
-      nextPageRequest: ({ response, request }) => ({
-        query: { ...request.query, page: (response?.page ?? 0) + 1 },
+      canFetchNext: ({ lastPage }) => lastPage?.data?.hasMore ?? false,
+      nextPageRequest: ({ lastPage, request }) => ({
+        query: { ...request.query, page: (lastPage?.data?.page ?? 0) + 1 },
       }),
-      merger: (responses) => responses.flatMap((r) => r.items),
+      merger: (pages) => pages.flatMap((p) => p.data?.items ?? []),
     }
   );
 
@@ -315,9 +315,8 @@ export class ToggleLikeButtonComponent {
   async handleToggle() {
     await this.toggleLike.trigger({
       params: { id: this.postId() },
-      optimistic: (api) => api(`posts/${this.postId()}`)
-        .GET()
-        .UPDATE_CACHE((current) => ({
+      optimistic: (cache) => cache(`posts/${this.postId()}`)
+        .set((current) => ({
           ...current,
           liked: !this.liked(),
           likeCount: this.liked() ? this.likeCount() - 1 : this.likeCount() + 1,
@@ -353,7 +352,7 @@ export class JobStatusComponent {
   job = injectRead(
     (api) => api("jobs/:id").GET({ params: { id: this.jobId() } }),
     {
-      pollingInterval: (data, error) => {
+      pollingInterval: ({ data, error }) => {
         if (error) return false;
         if (data?.status === "completed") return false;
         if (data?.status === "failed") return false;

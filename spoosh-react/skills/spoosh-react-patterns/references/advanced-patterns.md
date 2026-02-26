@@ -108,9 +108,8 @@ export function EditableTitle({ item }: { item: Item }) {
     const result = await trigger({
       params: { id: item.id },
       body: { title },
-      optimistic: (api) => api(`items/${item.id}`)
-        .GET()
-        .UPDATE_CACHE((current) => ({ ...current, title }))
+      optimistic: (cache) => cache(`items/${item.id}`)
+        .set((current) => ({ ...current, title }))
     });
 
     if (result.error) {
@@ -156,21 +155,21 @@ export function ChatMessages({ chatId }: { chatId: string }) {
     canFetchPrev,
     fetchNext,
     fetchPrev
-  } = useInfiniteRead(
+  } = usePages(
     (api) => api("chats/:id/messages").GET({
       params: { id: chatId },
       query: { cursor: null }
     }),
     {
-      canFetchNext: ({ response }) => !!response?.nextCursor,
-      nextPageRequest: ({ response }) => ({
-        query: { cursor: response?.nextCursor }
+      canFetchNext: ({ lastPage }) => !!lastPage?.data?.nextCursor,
+      nextPageRequest: ({ lastPage }) => ({
+        query: { cursor: lastPage?.data?.nextCursor }
       }),
-      canFetchPrev: ({ response }) => !!response?.prevCursor,
-      prevPageRequest: ({ response }) => ({
-        query: { cursor: response?.prevCursor }
+      canFetchPrev: ({ firstPage }) => !!firstPage?.data?.prevCursor,
+      prevPageRequest: ({ firstPage }) => ({
+        query: { cursor: firstPage?.data?.prevCursor }
       }),
-      merger: (responses) => responses.flatMap(r => r.messages)
+      merger: (pages) => pages.flatMap(p => p.data?.messages ?? [])
     }
   );
 
@@ -332,14 +331,16 @@ export function ResilientDataFetcher() {
   const { data, error, loading } = useRead(
     (api) => api("flaky-endpoint").GET(),
     {
-      retries: 5,
-      retryDelay: 1000,
-      // shouldRetry receives a context object, not a response
-      shouldRetry: ({ status, error, attempt, maxRetries }) => {
-        if (status === 401) return false;
-        if (status === 403) return false;
-        if (status === 404) return false;
-        return status !== undefined && status >= 500;
+      retry: {
+        retries: 5,
+        delay: 1000,
+        // shouldRetry receives a context object, not a response
+        shouldRetry: ({ status, error, attempt, maxRetries }) => {
+          if (status === 401) return false;
+          if (status === 403) return false;
+          if (status === 404) return false;
+          return status !== undefined && status >= 500;
+        }
       }
     }
   );

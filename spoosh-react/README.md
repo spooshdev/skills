@@ -6,7 +6,7 @@ Claude Code plugin for React developers using Spoosh - a type-safe API toolkit w
 
 ### Skills
 
-- **Spoosh React API** - Comprehensive API knowledge for `useRead`, `useWrite`, `useInfiniteRead`, and all plugins
+- **Spoosh React API** - Comprehensive API knowledge for `useRead`, `useWrite`, `usePages`, and all plugins
 - **Spoosh React Patterns** - Component patterns and best practices for building React apps with Spoosh
 
 ### Commands
@@ -63,7 +63,7 @@ The agent triggers automatically when you ask to:
 ## Skills Auto-Activation
 
 Skills load automatically when you ask about:
-- Spoosh hooks (`useRead`, `useWrite`, `useInfiniteRead`)
+- Spoosh hooks (`useRead`, `useWrite`, `usePages`)
 - Spoosh plugins (cache, retry, polling, etc.)
 - Component patterns (data fetching, mutations, infinite scroll)
 - Error handling, loading states, optimistic updates

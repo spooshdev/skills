@@ -16,7 +16,7 @@ import {
   OnDestroy,
   viewChild,
 } from "@angular/core";
-import { injectInfiniteRead } from "@/lib/spoosh";
+import { injectPages } from "@/lib/spoosh";
 
 // Types
 interface Post {
@@ -87,7 +87,7 @@ export class PostFeedComponent implements OnDestroy {
   topTrigger = viewChild<ElementRef>("topTrigger");
   bottomTrigger = viewChild<ElementRef>("bottomTrigger");
 
-  posts = injectInfiniteRead(
+  posts = injectPages(
     (api) =>
       api("posts").GET({
         query: {
@@ -97,22 +97,22 @@ export class PostFeedComponent implements OnDestroy {
         },
       }),
     {
-      canFetchNext: ({ response }) => response?.hasMore ?? false,
-      nextPageRequest: ({ response, request }) => ({
+      canFetchNext: ({ lastPage }) => lastPage?.data?.hasMore ?? false,
+      nextPageRequest: ({ lastPage, request }) => ({
         query: {
           ...request.query,
-          page: (response?.page ?? 0) + 1,
+          page: (lastPage?.data?.page ?? 0) + 1,
         },
       }),
-      canFetchPrev: ({ response }) => response?.hasPrev ?? false,
-      prevPageRequest: ({ response, request }) => ({
+      canFetchPrev: ({ firstPage }) => firstPage?.data?.hasPrev ?? false,
+      prevPageRequest: ({ firstPage, request }) => ({
         query: {
           ...request.query,
-          page: (response?.page ?? 2) - 1,
+          page: (firstPage?.data?.page ?? 2) - 1,
         },
       }),
-      merger: (responses: PostsResponse[]) =>
-        responses.flatMap((r) => r.items),
+      merger: (pages) =>
+        pages.flatMap((p) => p.data?.items ?? []),
       staleTime: 30000,
     }
   );

@@ -26,7 +26,7 @@ Provide quick access to Spoosh documentation based on the requested topic.
 3. **Provide Documentation**
 
    For **signals**:
-   - Explain `injectRead`, `injectWrite`, `injectInfiniteRead`
+   - Explain `injectRead`, `injectWrite`, `injectPages`
    - Show signal-based return types
    - Provide quick examples with Angular templates
 
@@ -48,7 +48,7 @@ Provide quick access to Spoosh documentation based on the requested topic.
    - TypeScript setup
 
    For **infinite**:
-   - `injectInfiniteRead` detailed guide
+   - `injectPages` detailed guide
    - Pagination options
    - Bidirectional scrolling
    - Merger function
@@ -93,7 +93,7 @@ submit = injectWrite((api) => api("path").POST());
 // await submit.trigger({ body: data })
 
 // Infinite scroll
-items = injectInfiniteRead(
+items = injectPages(
   (api) => api("path").GET({ query: { page: 1 } }),
   { canFetchNext, nextPageRequest, merger }
 );
